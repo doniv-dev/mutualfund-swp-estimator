@@ -507,9 +507,33 @@
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     .chart-section canvas { display: block; width: 100% !important; }
+    .chart-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .chart-tab {
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .chart-tab.active {
+      background: rgba(79,142,247,0.15);
+      border-color: var(--accent);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .chart-pane { display: none; }
+    .chart-pane.active { display: block; }
 
     /* target duration toggle */
     .section-divider {
@@ -1305,8 +1329,18 @@
 
       <!-- Chart -->
       <div class="chart-section">
-        <h3>Corpus, Cumulative Gains &amp; Tax Paid — Monthly</h3>
-        <canvas id="swpChart" height="320"></canvas>
+        <h3>Portfolio Charts</h3>
+        <div class="chart-tabs">
+          <button class="chart-tab active" onclick="switchChartTab('corpus',this)">Corpus &amp; P&amp;L</button>
+          <button class="chart-tab" onclick="switchChartTab('cashflow',this)">Monthly Cashflow</button>
+        </div>
+        <div class="chart-pane active" id="pane-corpus">
+          <canvas id="swpChart" height="320"></canvas>
+        </div>
+        <div class="chart-pane" id="pane-cashflow">
+          <canvas id="cashflowChart" height="300"></canvas>
+        </div>
+
       </div>
 
       <!-- Table -->
@@ -1391,69 +1425,210 @@
 
   // ── Chart ──
   let _chartInst = null;
+  let _cashflowChart = null;
+
+
+  function switchChartTab(name, btn) {
+    document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.chart-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('pane-' + name).classList.add('active');
+  }
 
   function renderChart(rows) {
-    // Sample every N months to keep chart readable (max ~120 points)
-    const step = Math.max(1, Math.floor(rows.length / 120));
+    const step    = Math.max(1, Math.floor(rows.length / 120));
     const sampled = rows.filter((_, i) => i % step === 0 || i === rows.length - 1);
 
-    const labels        = sampled.map(r => { const y = Math.ceil(r.month/12); const m = ((r.month-1)%12)+1; return `Y${y}-M${m<10?'0'+m:m}`; });
-    const corpusData    = sampled.map(r => +r.closingBal.toFixed(0));
-    const cumGain       = [];
-    const cumTax        = [];
-    let gSum = 0, tSum = 0;
-    // cumulate on full rows then re-sample
-    const cumGainFull = rows.map(r => { gSum += r.monthlyGain; return gSum; });
-    const cumTaxFull  = rows.map(r => { tSum += r.taxOutgo;    return tSum; });
-    sampled.forEach((_, idx) => {
-      const origIdx = Math.min(idx * step, rows.length - 1);
-      cumGain.push(+cumGainFull[origIdx].toFixed(0));
-      cumTax.push(+cumTaxFull[origIdx].toFixed(0));
+    const labels = sampled.map(r => {
+      const y = Math.ceil(r.month / 12);
+      const m = ((r.month - 1) % 12) + 1;
+      return `Y${y}-M${m < 10 ? '0' + m : m}`;
     });
 
-    const ctx = document.getElementById('swpChart').getContext('2d');
-    if (_chartInst) { _chartInst.destroy(); }
+    const corpusData = sampled.map(r => +r.closingBal.toFixed(0));
+    const deferralFlags = sampled.map(r => r.deferral);
+
+    // Cumulate on full rows then re-sample
+    let gSum = 0, tSum = 0, wSum = 0;
+    const cumGainFull = rows.map(r => { gSum += r.monthlyGain; return gSum; });
+    const cumTaxFull  = rows.map(r => { tSum += r.taxOutgo;    return tSum; });
+    const cumWdFull   = rows.map(r => { wSum += r.withdrawal;  return wSum; });
+
+    const cumGain = [], cumTax = [], cumWd = [];
+    sampled.forEach((_, idx) => {
+      const orig = Math.min(idx * step, rows.length - 1);
+      cumGain.push(+cumGainFull[orig].toFixed(0));
+      cumTax.push(+cumTaxFull[orig].toFixed(0));
+      cumWd.push(+cumWdFull[orig].toFixed(0));
+    });
+
+    // Monthly cashflow sample (capped at 120)
+    const cfStep    = Math.max(1, Math.floor(rows.length / 80));
+    const cfSampled = rows.filter((_, i) => i % cfStep === 0 || i === rows.length - 1);
+    const cfLabels  = cfSampled.map(r => { const y = Math.ceil(r.month/12); const m=((r.month-1)%12)+1; return `Y${y}-M${m<10?'0'+m:m}`; });
+    const cfGain    = cfSampled.map(r => +r.monthlyGain.toFixed(0));
+    const cfTax     = cfSampled.map(r => +r.taxOutgo.toFixed(0));
+    const cfWd      = cfSampled.map(r => +r.withdrawal.toFixed(0));
 
     Chart.defaults.color = '#8892a4';
     Chart.defaults.borderColor = '#2e3347';
 
-    _chartInst = new Chart(ctx, {
+    const ttFmt = v => v >= 1e7 ? `₹${(v/1e7).toFixed(2)} Cr` : v >= 1e5 ? `₹${(v/1e5).toFixed(2)} L` : `₹${Math.round(v).toLocaleString('en-IN')}`;
+    const yFmt  = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(0)+'L' : '₹'+v;
+    const baseScales = {
+      x: { ticks: { maxTicksLimit: 12, color: '#8892a4', font: { size: 11 } }, grid: { color: '#2e3347' } },
+      y: { ticks: { color: '#8892a4', font: { size: 11 }, callback: yFmt }, grid: { color: '#2e3347' } },
+    };
+    const baseTt = {
+      backgroundColor: '#1a1e2e',
+      borderColor: '#2e3347',
+      borderWidth: 1,
+      titleColor: '#e2e8f0',
+      bodyColor: '#8892a4',
+      padding: 10,
+    };
+
+    // ── Chart 1: Corpus Trajectory ──
+    // Find exhaustion point index
+    const exhaustIdx = sampled.findIndex(r => r.exhausted);
+
+    if (_chartInst) _chartInst.destroy();
+    _chartInst = new Chart(document.getElementById('swpChart').getContext('2d'), {
       type: 'line',
       data: {
         labels,
         datasets: [
           {
-            label: 'Closing Corpus',
+            label: 'Corpus Balance',
             data: corpusData,
             borderColor: '#4f8ef7',
-            backgroundColor: 'rgba(79,142,247,0.12)',
+            backgroundColor: ctx => {
+              const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+              g.addColorStop(0, 'rgba(79,142,247,0.20)');
+              g.addColorStop(1, 'rgba(79,142,247,0.01)');
+              return g;
+            },
             fill: true,
-            tension: 0.3,
+            tension: 0.4,
             pointRadius: 0,
-            borderWidth: 2,
-            order: 1,
+            pointHoverRadius: 5,
+            borderWidth: 2.5,
+            yAxisID: 'y',
           },
           {
-            label: 'Cumulative Gains',
+            label: 'Cumul. Gains',
             data: cumGain,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.10)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-            borderWidth: 2,
-            order: 2,
+            backgroundColor: 'rgba(34,197,94,0.08)',
+            fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.8,
+            yAxisID: 'y',
           },
           {
-            label: 'Cumulative Tax Paid',
+            label: 'Cumul. Withdrawn',
+            data: cumWd,
+            borderColor: '#a78bfa',
+            backgroundColor: 'rgba(167,139,250,0.06)',
+            fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.8,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Cumul. Tax',
             data: cumTax,
             borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245,158,11,0.12)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-            borderWidth: 2,
-            order: 3,
+            backgroundColor: 'rgba(245,158,11,0.06)',
+            fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.5, borderDash: [4,3],
+            yAxisID: 'y',
+          },
+        ],
+      },
+      plugins: [{
+        id: 'endLabel',
+        afterDraw(chart) {
+          const ctx2 = chart.ctx;
+          chart.data.datasets.forEach((ds, i) => {
+            const meta = chart.getDatasetMeta(i);
+            if (!meta.visible || !meta.data.length) return;
+            const lastPt = meta.data[meta.data.length - 1];
+            const val    = ds.data[ds.data.length - 1];
+            if (val == null) return;
+            ctx2.save();
+            ctx2.font = 'bold 11px sans-serif';
+            ctx2.fillStyle = ds.borderColor;
+            ctx2.textAlign = 'left';
+            ctx2.textBaseline = 'middle';
+            ctx2.fillText(ttFmt(val), lastPt.x + 6, lastPt.y);
+            ctx2.restore();
+          });
+        },
+      }],
+      options: {
+        responsive: true,
+        layout: { padding: { right: 120 } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#e2e8f0', boxWidth: 12, font: { size: 12 } } },
+          tooltip: {
+            ...baseTt,
+            callbacks: {
+              title: items => items[0].label,
+              label: ctx => {
+                if (ctx.datasetIndex === 0) {
+                  const r = sampled[ctx.dataIndex];
+                  return [
+                    ` Corpus: ${ttFmt(ctx.raw)}`,
+                    ` Monthly Gain: ${ttFmt(r.monthlyGain)}`,
+                    r.deferral ? ' Phase: Growth (deferral)' : ` Withdrawal: ${ttFmt(r.withdrawal)}`,
+                  ];
+                }
+                return ` ${ctx.dataset.label}: ${ttFmt(ctx.raw)}`;
+              },
+            },
+          },
+          annotation: exhaustIdx >= 0 ? {
+            annotations: {
+              exhaustLine: {
+                type: 'line',
+                xMin: exhaustIdx,
+                xMax: exhaustIdx,
+                borderColor: 'rgba(239,68,68,0.7)',
+                borderWidth: 2,
+                borderDash: [5, 4],
+                label: { content: '⚠ Exhausted', display: true, color: '#ef4444', font: { size: 11 }, position: 'start', backgroundColor: 'rgba(239,68,68,0.1)' },
+              },
+            },
+          } : {},
+        },
+        scales: baseScales,
+      },
+    });
+
+    // ── Chart 2: Monthly Cashflow (stacked bar) ──
+    if (_cashflowChart) _cashflowChart.destroy();
+    _cashflowChart = new Chart(document.getElementById('cashflowChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: cfLabels,
+        datasets: [
+          {
+            label: 'Monthly Gain',
+            data: cfGain,
+            backgroundColor: 'rgba(34,197,94,0.75)',
+            borderWidth: 0,
+            stack: 'cf',
+          },
+          {
+            label: 'Withdrawal',
+            data: cfWd,
+            backgroundColor: 'rgba(79,142,247,0.75)',
+            borderWidth: 0,
+            stack: 'out',
+          },
+          {
+            label: 'Tax',
+            data: cfTax,
+            backgroundColor: 'rgba(245,158,11,0.80)',
+            borderWidth: 0,
+            stack: 'out',
           },
         ],
       },
@@ -1461,41 +1636,22 @@
         responsive: true,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: {
-            labels: { color: '#e2e8f0', boxWidth: 14, font: { size: 12 } },
-          },
+          legend: { labels: { color: '#e2e8f0', boxWidth: 12, font: { size: 12 } } },
           tooltip: {
-            backgroundColor: '#22263a',
-            borderColor: '#2e3347',
-            borderWidth: 1,
-            titleColor: '#e2e8f0',
-            bodyColor: '#8892a4',
+            ...baseTt,
             callbacks: {
-              label: ctx => {
-                const v = ctx.raw;
-                if (v >= 1e7) return ` ${ctx.dataset.label}: ₹${(v/1e7).toFixed(2)} Cr`;
-                if (v >= 1e5) return ` ${ctx.dataset.label}: ₹${(v/1e5).toFixed(2)} L`;
-                return ` ${ctx.dataset.label}: ₹${v.toLocaleString('en-IN')}`;
-              }
-            }
-          },
-        },
-        scales: {
-          x: {
-            ticks: { maxTicksLimit: 12, color: '#8892a4', font: { size: 11 } },
-            grid: { color: '#2e3347' },
-          },
-          y: {
-            ticks: {
-              color: '#8892a4',
-              font: { size: 11 },
-              callback: v => v >= 1e7 ? '₹'+(v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(0)+'L' : '₹'+v,
+              title: items => items[0].label,
+              label: ctx => ` ${ctx.dataset.label}: ${ttFmt(ctx.raw)}`,
             },
-            grid: { color: '#2e3347' },
           },
         },
+        scales: { ...baseScales, x: { ...baseScales.x, ticks: { maxTicksLimit: 10, color: '#8892a4', font: { size: 11 } } } },
       },
     });
+
+
+
+
   }
 
   // ── CSV Export ──
