@@ -2,6 +2,14 @@
 
 A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans (SWP)** from a mutual fund corpus. Enter your parameters and instantly see how long your corpus lasts, month-by-month breakdowns, and interactive charts — all running locally in your browser.
 
+## Screenshots
+
+### Summary Dashboard
+![SWP Estimator — Summary](docs/screenshot.png)
+
+### Monthly Table
+![SWP Estimator — Monthly Table](docs/screenshot-chart.png)
+
 ## Features
 
 - **Corpus depletion simulation** — calculates exactly how many years and months until the corpus is exhausted
