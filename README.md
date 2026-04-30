@@ -23,7 +23,9 @@ A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans
 - **Persistent field highlights** — the auto-updated field shows a coloured border and "↻ Auto-set" badge until manually edited
 - **Field locking** — the field managed by the active solver is locked (read-only) with a tooltip on click
 - **Delta indicators on recalculate** — changed summary cards flash and show ▲/▼ % badges comparing previous vs new result
-- **Interactive chart** — line chart showing Closing Corpus, Cumulative Gains, and Cumulative Tax Paid over time (Chart.js)
+- **Two interactive charts** (tabbed):
+  - *Corpus & P&L* — overlays Corpus Balance, Cumulative Gains, Cumulative Withdrawn, and Cumulative Tax on one chart with final-value end labels and an exhaustion marker
+  - *Monthly Cashflow* — stacked bar chart of monthly Gain, Withdrawal, and Tax
 - **Stale results indicator** — button pulses amber and a banner appears when inputs are changed after calculation
 - **CSV export** — download the full monthly table as a CSV file
 
