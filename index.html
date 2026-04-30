@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SWP Fund Growth Estimator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #4f8ef7;
+      --accent2: #7c5cfc;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.3px; }
+    header p { font-size: 0.8rem; color: var(--muted); margin-top: 1px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 70px);
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    .field label .badge {
+      display: inline-block;
+      background: var(--surface2);
+      color: var(--accent);
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .input-wrap {
+      display: flex;
+      align-items: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+    .input-wrap:focus-within { border-color: var(--accent); }
+    .input-wrap .unit {
+      padding: 0 10px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: nowrap;
+      border-right: 1px solid var(--border);
+      height: 38px;
+      display: flex; align-items: center;
+    }
+    .input-wrap .unit.right {
+      border-right: none;
+      border-left: 1px solid var(--border);
+    }
+    .input-wrap input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 0 10px;
+      height: 38px;
+      width: 100%;
+    }
+    .input-wrap input::placeholder { color: var(--border); }
+
+    .monthly-note {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-top: 4px;
+      padding: 4px 8px;
+      background: rgba(79,142,247,0.08);
+      border-radius: 5px;
+    }
+    .readonly-field {
+      display: flex;
+      align-items: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 12px;
+      height: 38px;
+      gap: 8px;
+      cursor: not-allowed;
+      opacity: 0.85;
+    }
+    .readonly-field .readonly-value {
+      flex: 1;
+      font-size: 0.9rem;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .readonly-field .unit {
+      color: var(--muted);
+      font-size: 0.82rem;
+      border: none;
+      padding: 0;
+      height: auto;
+    }
+    .lock-icon { font-size: 0.75rem; color: var(--muted); }
+
+    .dual-input {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .combo-field {
+      display: flex;
+      align-items: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+    .combo-field:focus-within { border-color: var(--accent); }
+    .combo-field input[type=number] {
+      width: 44px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 0 6px 0 10px;
+      height: 38px;
+      font-variant-numeric: tabular-nums;
+      -moz-appearance: textfield;
+    }
+    .combo-field input[type=number]::-webkit-inner-spin-button,
+    .combo-field input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .combo-field .divider {
+      width: 1px;
+      height: 22px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .combo-field select {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--muted);
+      font-size: 0.8rem;
+      padding: 0 6px;
+      height: 38px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .combo-field select option { background: var(--surface2); color: var(--text); }
+    .start-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 4px;
+      padding: 4px 8px;
+      background: rgba(46,51,71,0.5);
+      border-radius: 5px;
+    }
+
+    .btn-calculate {
+      width: 100%;
+      margin-top: 20px;
+      padding: 11px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: opacity .2s, transform .1s, box-shadow .2s, background .2s;
+    }
+    .btn-calculate:hover { opacity: 0.9; }
+    .btn-calculate:active { transform: scale(0.98); }
+    .btn-calculate.stale {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      box-shadow: 0 0 0 3px rgba(245,158,11,0.35);
+      animation: pulse-btn 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse-btn {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(245,158,11,0.35); }
+      50%       { box-shadow: 0 0 0 6px rgba(245,158,11,0.12); }
+    }
+
+    /* stale results banner */
+    .stale-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.35);
+      border-radius: 9px;
+      padding: 10px 16px;
+      margin-bottom: 20px;
+      font-size: 0.82rem;
+      color: var(--yellow);
+      animation: fadeIn .25s ease;
+    }
+    .stale-banner .stale-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .stale-banner strong { color: #fcd34d; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+    /* ── Main content ── */
+    .main { padding: 24px 28px; overflow-x: auto; }
+
+    /* Summary cards */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card .label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .card .value {
+      font-size: 1.45rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+    .card.highlight { border-color: var(--accent); background: rgba(79,142,247,0.06); }
+    .card .value.red { color: var(--red); }
+    .card .value.green { color: var(--green); }
+    .card .value.yellow { color: var(--yellow); }
+
+    /* Depletion bar */
+    .depletion-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 28px;
+    }
+    .depletion-section h3 { font-size: 0.82rem; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .progress-bar {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+      border-radius: 4px;
+      transition: width 0.6s ease;
+    }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); }
+
+    /* Table section */
+    .table-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .table-header-row h3 { font-size: 1rem; font-weight: 600; }
+    .table-controls { display: flex; gap: 8px; }
+    .btn-sm {
+      padding: 5px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-sm:hover { background: var(--border); }
+
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .table-scroll { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    thead { position: sticky; top: 0; z-index: 2; }
+    thead tr { background: var(--surface2); }
+    th {
+      padding: 11px 14px;
+      text-align: right;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th:first-child { text-align: center; }
+    td {
+      padding: 9px 14px;
+      text-align: right;
+      border-bottom: 1px solid rgba(46,51,71,0.5);
+      white-space: nowrap;
+    }
+    td:first-child { text-align: center; color: var(--muted); font-size: 0.78rem; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.025); }
+    tbody tr.year-boundary td { border-top: 1px solid var(--accent); }
+    tbody tr.exhausted td { background: rgba(239,68,68,0.06); }
+    tbody tr.exhausted td { color: var(--red); }
+
+    .num { font-variant-numeric: tabular-nums; }
+    .neg { color: var(--red); }
+    .pos { color: var(--green); }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Chart ── */
+    .chart-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 28px;
+    }
+    .chart-section h3 {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+    .chart-section canvas { display: block; width: 100% !important; }
+
+    /* target duration toggle */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0 14px;
+    }
+    .target-note {
+      font-size: 0.72rem;
+      color: var(--green);
+      margin-top: 4px;
+      padding: 4px 8px;
+      background: rgba(34,197,94,0.08);
+      border-radius: 5px;
+      display: none;
+    }
+    .target-note.visible { display: block; }
+    .target-note.error { color: var(--red); background: rgba(239,68,68,0.08); }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+      header { padding: 14px 18px; }
+      .main { padding: 16px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📈</div>
+  <div>
+    <h1>SWP Fund Growth Estimator</h1>
+    <p>Systematic Withdrawal Plan — Corpus Depletion Simulator</p>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ── Sidebar: Inputs ── -->
+  <aside class="sidebar">
+    <h2>Parameters</h2>
+
+    <div class="field">
+      <label>Initial Corpus</label>
+      <div class="input-wrap">
+        <span class="unit">₹</span>
+        <input type="number" id="corpus" value="10000000" min="0" step="100000" placeholder="e.g. 10000000" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Monthly Withdrawal</label>
+      <div class="input-wrap">
+        <span class="unit">₹</span>
+        <input type="number" id="withdrawal" value="100000" min="0" step="1000" placeholder="e.g. 100000" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Annual Return <span class="badge">p.a.</span></label>
+      <div class="input-wrap">
+        <input type="number" id="annualReturn" value="12" min="0" max="50" step="0.1" placeholder="12" />
+        <span class="unit right">%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Monthly Return Rate <span class="badge">auto</span> <span class="lock-icon">🔒</span></label>
+      <div class="readonly-field">
+        <span class="readonly-value" id="monthlyReturnDisplay">0.9489</span>
+        <span class="unit">%</span>
+      </div>
+      <div class="monthly-note" id="monthlyNote">Derived from Annual Return: 0.9489%</div>
+    </div>
+
+    <div class="field">
+      <label>Tax Rate</label>
+      <div class="input-wrap">
+        <input type="number" id="ltcgRate" value="12.5" min="0" max="50" step="0.5" placeholder="12.5" />
+        <span class="unit right">%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Annual Inflation <span class="badge">on withdrawal</span></label>
+      <div class="input-wrap">
+        <input type="number" id="inflation" value="6" min="0" max="30" step="0.5" placeholder="6" />
+        <span class="unit right">%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>SWP Starts After <span class="badge">deferral</span></label>
+      <div class="dual-input">
+        <div class="combo-field">
+          <input type="number" id="startYearsNum" value="0" min="0" max="50" />
+          <div class="divider"></div>
+          <select id="startYears">
+            <option value="0" selected>0 Yrs</option>
+            <option value="1">1 Yr</option>
+            <option value="2">2 Yrs</option>
+            <option value="3">3 Yrs</option>
+            <option value="4">4 Yrs</option>
+            <option value="5">5 Yrs</option>
+            <option value="6">6 Yrs</option>
+            <option value="7">7 Yrs</option>
+            <option value="8">8 Yrs</option>
+            <option value="9">9 Yrs</option>
+            <option value="10">10 Yrs</option>
+          </select>
+        </div>
+        <div class="combo-field">
+          <input type="number" id="startMonthsNum" value="1" min="0" max="11" />
+          <div class="divider"></div>
+          <select id="startMonths">
+            <option value="0">0 Months</option>
+            <option value="1" selected>1 Month</option>
+            <option value="2">2 Months</option>
+            <option value="3">3 Months</option>
+            <option value="4">4 Months</option>
+            <option value="5">5 Months</option>
+            <option value="6">6 Months</option>
+            <option value="7">7 Months</option>
+            <option value="8">8 Months</option>
+            <option value="9">9 Months</option>
+            <option value="10">10 Months</option>
+            <option value="11">11 Months</option>
+          </select>
+        </div>
+      </div>
+      <div class="start-note" id="startNote">Withdrawals begin from Month 2 (after 0Y 1M deferral)</div>
+    </div>
+
+    <hr class="section-divider" />
+
+    <div class="field">
+      <label>Target: Corpus Exhausted In <span class="badge">auto-adjust ₹</span></label>
+      <div class="dual-input">
+        <div class="combo-field">
+          <input type="number" id="targetYearsNum" value="" min="0" max="100" placeholder="Yrs" />
+          <div class="divider"></div>
+          <select id="targetYears">
+            <option value="">— Yrs</option>
+            <option value="5">5 Yrs</option>
+            <option value="10">10 Yrs</option>
+            <option value="15">15 Yrs</option>
+            <option value="20">20 Yrs</option>
+            <option value="25">25 Yrs</option>
+            <option value="30">30 Yrs</option>
+            <option value="35">35 Yrs</option>
+            <option value="40">40 Yrs</option>
+            <option value="45">45 Yrs</option>
+            <option value="50">50 Yrs</option>
+          </select>
+        </div>
+        <div class="combo-field">
+          <input type="number" id="targetMonthsNum" value="" min="0" max="11" placeholder="Mo" />
+          <div class="divider"></div>
+          <select id="targetMonths">
+            <option value="">— Mo</option>
+            <option value="0">0 Months</option>
+            <option value="1">1 Month</option>
+            <option value="2">2 Months</option>
+            <option value="3">3 Months</option>
+            <option value="4">4 Months</option>
+            <option value="5">5 Months</option>
+            <option value="6">6 Months</option>
+            <option value="7">7 Months</option>
+            <option value="8">8 Months</option>
+            <option value="9">9 Months</option>
+            <option value="10">10 Months</option>
+            <option value="11">11 Months</option>
+          </select>
+        </div>
+      </div>
+      <div class="target-note" id="targetNote"></div>
+    </div>
+
+    <button class="btn-calculate" onclick="calculate()">Calculate →</button>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main" id="mainContent">
+    <div class="empty-state">
+      <div class="icon">💼</div>
+      <p>Enter your parameters and click <strong>Calculate</strong> to see the projection.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── Auto-compute monthly return from annual ──
+  const annualInput = document.getElementById('annualReturn');
+  const monthlyNote = document.getElementById('monthlyNote');
+
+  const monthlyDisplay = document.getElementById('monthlyReturnDisplay');
+
+  function syncMonthly() {
+    const ar = parseFloat(annualInput.value);
+    if (!isNaN(ar) && ar >= 0) {
+      const mr = (Math.pow(1 + ar / 100, 1 / 12) - 1) * 100;
+      monthlyDisplay.textContent = mr.toFixed(4);
+      monthlyNote.textContent = `Derived from Annual Return: ${mr.toFixed(4)}%`;
+    }
+  }
+
+  annualInput.addEventListener('input', syncMonthly);
+
+  // ── Update start note ──
+  function syncStartNote() {
+    const y = parseInt(document.getElementById('startYearsNum').value) || 0;
+    const m = parseInt(document.getElementById('startMonthsNum').value) || 0;
+    const total = y * 12 + m;
+    const startMonth = total + 1;
+    document.getElementById('startNote').textContent =
+      total === 0
+        ? 'Withdrawals begin immediately from Month 1 (no deferral)'
+        : `Withdrawals begin from Month ${startMonth} (after ${y}Y ${m}M deferral)`;
+  }
+
+  function syncSelectFromInput(inputId, selectId, max) {
+    const input = document.getElementById(inputId);
+    const select = document.getElementById(selectId);
+    input.addEventListener('input', () => {
+      let v = parseInt(input.value);
+      if (isNaN(v) || v < 0) v = 0;
+      if (v > max) v = max;
+      input.value = v;
+      // sync select if value exists in options
+      const opt = select.querySelector(`option[value="${v}"]`);
+      if (opt) select.value = v;
+      syncStartNote();
+    });
+    select.addEventListener('change', () => {
+      input.value = select.value;
+      syncStartNote();
+    });
+  }
+
+  syncSelectFromInput('startYearsNum', 'startYears', 50);
+  syncSelectFromInput('startMonthsNum', 'startMonths', 11);
+
+  // ── Target duration → auto-solve withdrawal ──
+  function syncTargetSelect(inputId, selectId, max) {
+    const input  = document.getElementById(inputId);
+    const select = document.getElementById(selectId);
+    input.addEventListener('input', () => {
+      let v = input.value.trim();
+      if (v === '') { select.value = ''; onTargetChange(); return; }
+      let n = parseInt(v);
+      if (isNaN(n) || n < 0) n = 0;
+      if (n > max) n = max;
+      input.value = n;
+      const opt = select.querySelector(`option[value="${n}"]`);
+      if (opt) select.value = n; else select.value = '';
+      onTargetChange();
+    });
+    select.addEventListener('change', () => {
+      input.value = select.value;
+      onTargetChange();
+    });
+  }
+
+  function onTargetChange() {
+    const tyRaw = document.getElementById('targetYearsNum').value.trim();
+    const tmRaw = document.getElementById('targetMonthsNum').value.trim();
+    const note  = document.getElementById('targetNote');
+
+    if (tyRaw === '' && tmRaw === '') {
+      note.className = 'target-note';
+      note.textContent = '';
+      return;
+    }
+
+    const ty = parseInt(tyRaw) || 0;
+    const tm = parseInt(tmRaw) || 0;
+    const targetMonths = ty * 12 + tm;
+
+    if (targetMonths < 1) {
+      note.className = 'target-note visible error';
+      note.textContent = 'Target must be at least 1 month.';
+      return;
+    }
+
+    const corpus         = parseFloat(document.getElementById('corpus').value) || 0;
+    const monthlyRetPct  = parseFloat(document.getElementById('monthlyReturnDisplay').textContent) || 0;
+    const ltcgRate       = parseFloat(document.getElementById('ltcgRate').value) || 0;
+    const inflation      = parseFloat(document.getElementById('inflation').value) || 0;
+    const startY         = parseInt(document.getElementById('startYearsNum').value) || 0;
+    const startM         = parseInt(document.getElementById('startMonthsNum').value) || 0;
+    const deferral       = startY * 12 + startM;
+
+    if (corpus <= 0) {
+      note.className = 'target-note visible error';
+      note.textContent = 'Enter a valid Initial Corpus first.';
+      return;
+    }
+
+    const solved = solveWithdrawal(corpus, monthlyRetPct, ltcgRate, inflation, deferral, targetMonths);
+
+    if (solved === null) {
+      note.className = 'target-note visible error';
+      note.textContent = 'Could not solve — check corpus and return rate.';
+      return;
+    }
+
+    // Update withdrawal input
+    const wInput = document.getElementById('withdrawal');
+    wInput.value = Math.round(solved);
+    note.className = 'target-note visible';
+    note.textContent = `✓ Monthly withdrawal set to ₹${Math.round(solved).toLocaleString('en-IN')} to last ${ty}Y ${tm}M`;
+    markStale();
+  }
+
+  // Binary search: find withdrawal W such that runSWP lasts exactly targetSwpMonths SWP months
+  function solveWithdrawal(corpus, monthlyRetPct, ltcgRate, inflation, deferral, targetTotalMonths) {
+    // targetTotalMonths = deferral + SWP months we want
+    const targetSwpMonths = targetTotalMonths; // user means SWP duration
+    let lo = 1, hi = corpus * 2, best = null;
+    for (let iter = 0; iter < 80; iter++) {
+      const mid = (lo + hi) / 2;
+      const rows = runSWP(corpus, mid, monthlyRetPct, ltcgRate, inflation, deferral);
+      const swpLen = rows.filter(r => !r.deferral).length;
+      if (Math.abs(swpLen - targetSwpMonths) <= 1) { best = mid; break; }
+      if (swpLen > targetSwpMonths) lo = mid;  // lasts too long → increase withdrawal
+      else                          hi = mid;  // runs out too fast → decrease withdrawal
+      if (hi - lo < 0.01) { best = mid; break; }
+    }
+    return best;
+  }
+
+  syncTargetSelect('targetYearsNum', 'targetYears', 100);
+  syncTargetSelect('targetMonthsNum', 'targetMonths', 11);
+
+  // re-solve when other relevant inputs change
+  ['corpus','annualReturn','ltcgRate','inflation','startYearsNum','startMonthsNum'].forEach(id => {
+    document.getElementById(id).addEventListener('input',  onTargetChange);
+    document.getElementById(id).addEventListener('change', onTargetChange);
+  });
+
+  // ── Stale state ──
+  let _hasResults = false;
+
+  function markStale() {
+    if (!_hasResults) return; // no results yet, nothing to mark stale
+    document.querySelector('.btn-calculate').classList.add('stale');
+    document.querySelector('.btn-calculate').textContent = '⚠️ Recalculate →';
+    // show banner in main if results are visible
+    const main = document.getElementById('mainContent');
+    if (main && !main.querySelector('.stale-banner')) {
+      const banner = document.createElement('div');
+      banner.className = 'stale-banner';
+      banner.innerHTML = '<span class="stale-icon">⚠️</span><span><strong>Results are outdated.</strong> You changed one or more inputs — click <strong>Recalculate</strong> to update the chart and table.</span>';
+      main.prepend(banner);
+    }
+  }
+
+  function markFresh() {
+    _hasResults = true;
+    const btn = document.querySelector('.btn-calculate');
+    btn.classList.remove('stale');
+    btn.textContent = 'Calculate →';
+    const banner = document.getElementById('mainContent').querySelector('.stale-banner');
+    if (banner) banner.remove();
+  }
+
+  // attach stale listener to all inputs/selects in sidebar
+  document.querySelectorAll('.sidebar input, .sidebar select').forEach(el => {
+    el.addEventListener('input',  markStale);
+    el.addEventListener('change', markStale);
+  });
+
+  // ── Formatters ──
+  const fmtINR = n => {
+    if (n === undefined || isNaN(n)) return '—';
+    const abs = Math.abs(n);
+    let s;
+    if (abs >= 1e7) s = '₹' + (n / 1e7).toFixed(2) + ' Cr';
+    else if (abs >= 1e5) s = '₹' + (n / 1e5).toFixed(2) + ' L';
+    else s = '₹' + n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return s;
+  };
+
+  const fmtFull = n => {
+    if (n === undefined || isNaN(n)) return '—';
+    return '₹' + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  // ── Core calculation ──
+  // deferralMonths: number of months the corpus grows before first withdrawal
+  function runSWP(corpus, withdrawal, monthlyReturnPct, ltcgRatePct, inflationPct, deferralMonths) {
+    const r = monthlyReturnPct / 100;
+    const ltcg = ltcgRatePct / 100;
+    const inflAnnual = inflationPct / 100;
+
+    let balance = corpus;
+    const rows = [];
+    const MAX = 1500; // 125 years max
+
+    // ── Deferral phase: corpus grows, no withdrawal ──
+    for (let d = 0; d < deferralMonths; d++) {
+      const openingBal = balance;
+      const monthlyGain = openingBal * r;
+      const closingBal = openingBal + monthlyGain;
+      rows.push({
+        month: d + 1,
+        openingBal,
+        withdrawal: 0,
+        taxOutgo: 0,
+        monthlyGain,
+        closingBal,
+        isYearBoundary: (d + 1) % 12 === 1 && d > 0,
+        exhausted: false,
+        inflationWithdrawal: 0,
+        deferral: true,
+      });
+      balance = closingBal;
+    }
+
+    // ── SWP phase ──
+    let currentWithdrawal = withdrawal;
+    let swpMonth = 0; // month counter within SWP phase (for inflation stepping)
+
+    while (balance > 0 && rows.length < MAX) {
+      swpMonth++;
+      const absMonth = deferralMonths + swpMonth;
+
+      // Increase withdrawal for inflation every 12 SWP months
+      if (swpMonth > 1 && (swpMonth - 1) % 12 === 0) {
+        currentWithdrawal *= (1 + inflAnnual);
+      }
+
+      const openingBal = balance;
+      const monthlyGain = openingBal * r;
+      const totalBeforeWithdrawal = openingBal + monthlyGain;
+
+      const actualWithdrawal = Math.min(currentWithdrawal, totalBeforeWithdrawal);
+
+      const gainFraction = totalBeforeWithdrawal > 0
+        ? monthlyGain / totalBeforeWithdrawal
+        : 0;
+      const taxableGainInWithdrawal = actualWithdrawal * gainFraction;
+      const taxOutgo = taxableGainInWithdrawal * ltcg;
+
+      const closingBal = totalBeforeWithdrawal - actualWithdrawal - taxOutgo;
+
+      rows.push({
+        month: absMonth,
+        openingBal,
+        withdrawal: actualWithdrawal,
+        taxOutgo,
+        monthlyGain,
+        closingBal: Math.max(0, closingBal),
+        isYearBoundary: absMonth % 12 === 1 && absMonth > 1,
+        exhausted: closingBal <= 0,
+        inflationWithdrawal: currentWithdrawal,
+        deferral: false,
+      });
+
+      balance = closingBal;
+      if (balance <= 0) break;
+    }
+
+    return rows;
+  }
+
+  // ── Render ──
+  function calculate() {
+    const corpus        = parseFloat(document.getElementById('corpus').value) || 0;
+    const withdrawal    = parseFloat(document.getElementById('withdrawal').value) || 0;
+    const annualReturn  = parseFloat(document.getElementById('annualReturn').value) || 0;
+    const monthlyReturnPct = parseFloat(document.getElementById('monthlyReturnDisplay').textContent) || 0;
+    const ltcgRate      = parseFloat(document.getElementById('ltcgRate').value) || 0;
+    const inflation     = parseFloat(document.getElementById('inflation').value) || 0;
+    const startY        = parseInt(document.getElementById('startYearsNum').value) || 0;
+    const startM        = parseInt(document.getElementById('startMonthsNum').value) || 0;
+    const deferralMonths = startY * 12 + startM;
+
+    if (corpus <= 0 || withdrawal <= 0) {
+      alert('Please enter valid Corpus and Monthly Withdrawal values.');
+      return;
+    }
+
+    const rows = runSWP(corpus, withdrawal, monthlyReturnPct, ltcgRate, inflation, deferralMonths);
+    const totalMonths = rows.length;
+    const totalYears  = Math.floor(totalMonths / 12);
+    const remMonths   = totalMonths % 12;
+    const swpRows     = rows.filter(r => !r.deferral);
+    const swpMonths   = swpRows.length;
+    const swpYears    = Math.floor(swpMonths / 12);
+    const swpRemM     = swpMonths % 12;
+
+    const totalWithdrawn = rows.reduce((s, r) => s + r.withdrawal, 0);
+    const totalTax       = rows.reduce((s, r) => s + r.taxOutgo, 0);
+    const totalGain      = rows.reduce((s, r) => s + r.monthlyGain, 0);
+    const exhausted      = rows.length > 0 && rows[rows.length - 1].exhausted;
+    const corpusAtStart  = deferralMonths > 0 ? rows[deferralMonths - 1].closingBal : corpus;
+
+    const progressPct = Math.min(100, (swpYears / 50) * 100); // scale to 50 yrs
+
+    const main = document.getElementById('mainContent');
+    main.innerHTML = `
+      <!-- Summary -->
+      <div class="summary-grid">
+        <div class="card highlight">
+          <div class="label">SWP Lasts</div>
+          <div class="value ${exhausted ? 'red' : 'green'}">${swpYears}Y ${swpRemM}M</div>
+          <div class="sub">${swpMonths} SWP months · ${totalMonths} total</div>
+        </div>
+        <div class="card">
+          <div class="label">Corpus at SWP Start</div>
+          <div class="value">${fmtINR(corpusAtStart)}</div>
+          <div class="sub">After ${startY}Y ${startM}M deferral</div>
+        </div>
+        <div class="card">
+          <div class="label">Total Withdrawn</div>
+          <div class="value green">${fmtINR(totalWithdrawn)}</div>
+          <div class="sub">${fmtFull(totalWithdrawn)}</div>
+        </div>
+        <div class="card">
+          <div class="label">Total Tax Paid</div>
+          <div class="value yellow">${fmtINR(totalTax)}</div>
+          <div class="sub">${fmtFull(totalTax)}</div>
+        </div>
+        <div class="card">
+          <div class="label">Total Gains Earned</div>
+          <div class="value">${fmtINR(totalGain)}</div>
+          <div class="sub">${fmtFull(totalGain)}</div>
+        </div>
+        <div class="card">
+          <div class="label">Monthly Return</div>
+          <div class="value">${monthlyReturnPct.toFixed(4)}%</div>
+          <div class="sub">Annual: ${annualReturn}%</div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="depletion-section">
+        <h3>Corpus Depletion Timeline</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${progressPct}%"></div>
+        </div>
+        <div class="progress-labels">
+          <span>Month 1</span>
+          <span style="color:var(--accent); font-weight:600;">
+            ${exhausted ? '⚠ SWP exhausted at ' + swpYears + 'Y ' + swpRemM + 'M' : '✓ SWP running beyond 50 years'}
+          </span>
+          <span>${swpMonths} SWP months</span>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-section">
+        <h3>Corpus, Cumulative Gains &amp; Tax Paid — Monthly</h3>
+        <canvas id="swpChart" height="320"></canvas>
+      </div>
+
+      <!-- Table -->
+      <div class="table-header-row">
+        <h3>Monthly Breakdown — ${rows.length} months ${deferralMonths > 0 ? '(' + deferralMonths + ' deferral + ' + swpMonths + ' SWP)' : ''}</h3>
+        <div class="table-controls">
+          <button class="btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table id="swpTable">
+            <thead>
+              <tr>
+                <th>Month (A)</th>
+                <th>Opening Bal (B)</th>
+                <th>Withdrawal (C)</th>
+                <th>Tax Outgo (D)</th>
+                <th>Monthly Gain (E)</th>
+                <th>Closing Bal (F)</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    const tbody = document.getElementById('tableBody');
+    const fragment = document.createDocumentFragment();
+
+    rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      if (r.isYearBoundary) tr.classList.add('year-boundary');
+      if (r.exhausted)      tr.classList.add('exhausted');
+
+      const yr  = Math.ceil(r.month / 12);
+      const mo  = ((r.month - 1) % 12) + 1;
+      const label = `Y${yr}-M${mo < 10 ? '0' + mo : mo}`;
+      const deferralTag = r.deferral ? ' <span style="font-size:0.65rem;color:var(--accent);background:rgba(79,142,247,0.12);padding:1px 4px;border-radius:3px;margin-left:3px;">GROW</span>' : '';
+
+      tr.innerHTML = `
+        <td>${label}${deferralTag}</td>
+        <td class="num">${fmtFull(r.openingBal)}</td>
+        <td class="num ${r.deferral ? 'muted' : (r.withdrawal < r.inflationWithdrawal * 0.99 ? 'neg' : '')}">${r.deferral ? '—' : fmtFull(r.withdrawal)}</td>
+        <td class="num yellow">${r.deferral ? '—' : fmtFull(r.taxOutgo)}</td>
+        <td class="num pos">${fmtFull(r.monthlyGain)}</td>
+        <td class="num ${r.closingBal < corpus * 0.1 ? 'neg' : ''}">${fmtFull(r.closingBal)}</td>
+      `;
+      fragment.appendChild(tr);
+    });
+
+    tbody.appendChild(fragment);
+
+    // Store for CSV export
+    window._swpRows = rows;
+    window._swpInputs = { corpus, withdrawal, annualReturn, monthlyReturnPct, ltcgRate, inflation };
+
+    markFresh();
+
+    // ── Build chart ──
+    renderChart(rows);
+  }
+
+  // ── Chart ──
+  let _chartInst = null;
+
+  function renderChart(rows) {
+    // Sample every N months to keep chart readable (max ~120 points)
+    const step = Math.max(1, Math.floor(rows.length / 120));
+    const sampled = rows.filter((_, i) => i % step === 0 || i === rows.length - 1);
+
+    const labels        = sampled.map(r => { const y = Math.ceil(r.month/12); const m = ((r.month-1)%12)+1; return `Y${y}-M${m<10?'0'+m:m}`; });
+    const corpusData    = sampled.map(r => +r.closingBal.toFixed(0));
+    const cumGain       = [];
+    const cumTax        = [];
+    let gSum = 0, tSum = 0;
+    // cumulate on full rows then re-sample
+    const cumGainFull = rows.map(r => { gSum += r.monthlyGain; return gSum; });
+    const cumTaxFull  = rows.map(r => { tSum += r.taxOutgo;    return tSum; });
+    sampled.forEach((_, idx) => {
+      const origIdx = Math.min(idx * step, rows.length - 1);
+      cumGain.push(+cumGainFull[origIdx].toFixed(0));
+      cumTax.push(+cumTaxFull[origIdx].toFixed(0));
+    });
+
+    const ctx = document.getElementById('swpChart').getContext('2d');
+    if (_chartInst) { _chartInst.destroy(); }
+
+    Chart.defaults.color = '#8892a4';
+    Chart.defaults.borderColor = '#2e3347';
+
+    _chartInst = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Closing Corpus',
+            data: corpusData,
+            borderColor: '#4f8ef7',
+            backgroundColor: 'rgba(79,142,247,0.12)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            order: 1,
+          },
+          {
+            label: 'Cumulative Gains',
+            data: cumGain,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.10)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            order: 2,
+          },
+          {
+            label: 'Cumulative Tax Paid',
+            data: cumTax,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245,158,11,0.12)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            order: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: '#e2e8f0', boxWidth: 14, font: { size: 12 } },
+          },
+          tooltip: {
+            backgroundColor: '#22263a',
+            borderColor: '#2e3347',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#8892a4',
+            callbacks: {
+              label: ctx => {
+                const v = ctx.raw;
+                if (v >= 1e7) return ` ${ctx.dataset.label}: ₹${(v/1e7).toFixed(2)} Cr`;
+                if (v >= 1e5) return ` ${ctx.dataset.label}: ₹${(v/1e5).toFixed(2)} L`;
+                return ` ${ctx.dataset.label}: ₹${v.toLocaleString('en-IN')}`;
+              }
+            }
+          },
+        },
+        scales: {
+          x: {
+            ticks: { maxTicksLimit: 12, color: '#8892a4', font: { size: 11 } },
+            grid: { color: '#2e3347' },
+          },
+          y: {
+            ticks: {
+              color: '#8892a4',
+              font: { size: 11 },
+              callback: v => v >= 1e7 ? '₹'+(v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(0)+'L' : '₹'+v,
+            },
+            grid: { color: '#2e3347' },
+          },
+        },
+      },
+    });
+  }
+
+  // ── CSV Export ──
+  function exportCSV() {
+    const rows = window._swpRows;
+    if (!rows) return;
+    const lines = [
+      ['Month (A)', 'Opening Bal (B)', 'Withdrawal (C)', 'Tax Outgo (D)', 'Monthly Gain (E)', 'Closing Bal (F)'].join(',')
+    ];
+    rows.forEach(r => {
+      const yr = Math.ceil(r.month / 12);
+      const mo = ((r.month - 1) % 12) + 1;
+      lines.push([
+        `Y${yr}-M${mo < 10 ? '0' + mo : mo}`,
+        r.openingBal.toFixed(2),
+        r.withdrawal.toFixed(2),
+        r.taxOutgo.toFixed(2),
+        r.monthlyGain.toFixed(2),
+        r.closingBal.toFixed(2),
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'swp_projection.csv';
+    a.click();
+  }
+
+  // ── Run on load with defaults ──
+  calculate();
+</script>
+</body>
+</html>
