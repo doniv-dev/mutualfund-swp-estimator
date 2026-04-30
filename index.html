@@ -173,6 +173,27 @@
     /* when locked field is also auto-updated, restore opacity so highlight is visible */
     .input-wrap.locked.field-updated-w,
     .input-wrap.locked.field-updated-c { opacity: 1; }
+    /* target field locked in target-auto mode */
+    .combo-field.locked {
+      opacity: 0.55;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .combo-field.locked.field-updated-t {
+      opacity: 1;
+    }
+    .combo-field.locked input,
+    .combo-field.locked select { pointer-events: none; cursor: not-allowed; }
+    .input-wrap.field-updated-t {
+      border-color: var(--yellow) !important;
+      box-shadow: 0 0 0 2px rgba(251,191,36,0.22);
+    }
+    .auto-set-badge.visible-t {
+      display: inline-block;
+      background: rgba(251,191,36,0.15);
+      color: var(--yellow);
+      border: 1px solid rgba(251,191,36,0.35);
+    }
     /* field auto-updated — mode-coloured persistent border */
     .input-wrap.field-updated-w {
       border-color: var(--green) !important;
@@ -549,6 +570,12 @@
       color: var(--text);
       font-weight: 600;
     }
+    .solve-toggle button.active-t {
+      background: rgba(251,191,36,0.15);
+      border-color: var(--yellow);
+      color: var(--text);
+      font-weight: 600;
+    }
 
 
     @media (max-width: 900px) {
@@ -664,9 +691,9 @@
     <hr class="section-divider" />
 
     <div class="field">
-      <label>Target: Corpus Exhausted In <span class="badge">auto-adjust ₹</span></label>
-      <div class="dual-input">
-        <div class="combo-field">
+      <label>Target: Corpus Exhausted In <span class="badge" style="color:var(--yellow);background:rgba(251,191,36,0.12);">auto-adjust ₹</span></label>
+      <div class="dual-input" id="targetDualInput">
+        <div class="combo-field" id="targetYearsCombo">
           <input type="number" id="targetYearsNum" value="" min="0" max="100" placeholder="Yrs" />
           <div class="divider"></div>
           <select id="targetYears">
@@ -683,7 +710,7 @@
             <option value="50">50 Yrs</option>
           </select>
         </div>
-        <div class="combo-field">
+        <div class="combo-field" id="targetMonthsCombo">
           <input type="number" id="targetMonthsNum" value="" min="0" max="11" placeholder="Mo" />
           <div class="divider"></div>
           <select id="targetMonths">
@@ -708,6 +735,7 @@
       <div class="solve-toggle">
         <button id="solveWBtn" class="active-w" onclick="setSolveMode('withdrawal')">Auto-update Withdrawal ₹</button>
         <button id="solveCBtn" onclick="setSolveMode('corpus')">Auto-update Corpus 🏦</button>
+        <button id="solveTBtn" onclick="setSolveMode('target')">Auto-update Target 📅</button>
       </div>
     </div>
 
@@ -865,11 +893,23 @@
     _solveMode = mode;
     document.getElementById('solveWBtn').className = mode === 'withdrawal' ? 'active-w' : '';
     document.getElementById('solveCBtn').className = mode === 'corpus'     ? 'active-c' : '';
+    document.getElementById('solveTBtn').className = mode === 'target'     ? 'active-t' : '';
     setFieldLock('withdrawal', mode === 'withdrawal');
     setFieldLock('corpus',     mode === 'corpus');
-    // clear auto-set badge from the field that is no longer being managed
-    if (mode === 'withdrawal') clearFieldUpdated('corpus');
-    else                       clearFieldUpdated('withdrawal');
+    // lock/unlock target combo fields
+    const lockTarget = mode === 'target';
+    ['targetYearsCombo','targetMonthsCombo'].forEach(id => {
+      const el = document.getElementById(id);
+      if (lockTarget) el.classList.add('locked');
+      else            el.classList.remove('locked', 'field-updated-t');
+    });
+    // clear auto-set badge from fields no longer managed
+    if (mode !== 'withdrawal') clearFieldUpdated('withdrawal');
+    if (mode !== 'corpus')     clearFieldUpdated('corpus');
+    if (mode !== 'target') {
+      document.getElementById('targetNote').className = 'target-note';
+      document.getElementById('targetNote').textContent = '';
+    }
   }
 
   // Apply initial lock state
@@ -880,6 +920,50 @@
     const tmRaw = document.getElementById('targetMonthsNum').value.trim();
     const tnote = document.getElementById('targetNote');
     const cnote = document.getElementById('corpusNote');
+
+    // Common params — needed by all branches
+    const monthlyRetPct = parseFloat(document.getElementById('monthlyReturnDisplay').textContent) || 0;
+    const ltcgRate      = parseFloat(document.getElementById('ltcgRate').value) || 0;
+    const inflation     = parseFloat(document.getElementById('inflation').value) || 0;
+    const startY        = parseInt(document.getElementById('startYearsNum').value) || 0;
+    const startM        = parseInt(document.getElementById('startMonthsNum').value) || 0;
+    const deferral      = startY * 12 + startM;
+
+    if (_solveMode === 'target') {
+      // compute actual exhaustion time from corpus + withdrawal, then fill target fields
+      cnote.className = 'corpus-note'; cnote.textContent = '';
+      const corpus = parseFloat(document.getElementById('corpus').value) || 0;
+      const w      = parseFloat(document.getElementById('withdrawal').value) || 0;
+      if (corpus <= 0 || w <= 0) {
+        tnote.className = 'target-note visible error';
+        tnote.textContent = 'Enter valid Corpus and Withdrawal first.';
+        return;
+      }
+      const rows2 = runSWP(corpus, w, monthlyRetPct, ltcgRate, inflation, deferral);
+      const swpM  = rows2.filter(r => !r.deferral).length;
+      const sY = Math.floor(swpM / 12);
+      const sM = swpM % 12;
+      const tyEl2 = document.getElementById('targetYearsNum');
+      const tmEl2 = document.getElementById('targetMonthsNum');
+      const tyS   = document.getElementById('targetYears');
+      const tmS   = document.getElementById('targetMonths');
+      tyEl2.value = sY; tmEl2.value = sM;
+      const tyO = tyS.querySelector(`option[value="${sY}"]`);
+      if (tyO) tyS.value = sY; else tyS.value = '';
+      const tmO = tmS.querySelector(`option[value="${sM}"]`);
+      if (tmO) tmS.value = sM; else tmS.value = '';
+      // flash the target combo fields amber
+      ['targetYearsCombo','targetMonthsCombo'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('field-updated-t');
+        void el.offsetWidth;
+        el.classList.add('field-updated-t');
+      });
+      tnote.className = 'target-note visible';
+      tnote.textContent = `✓ Target set to ${sY}Y ${sM}M (corpus exhaustion from simulation)`;
+      markStale();
+      return;
+    }
 
     if (tyRaw === '' && tmRaw === '') {
       tnote.className = 'target-note'; tnote.textContent = '';
@@ -896,13 +980,6 @@
       cnote.className = 'corpus-note'; cnote.textContent = '';
       return;
     }
-
-    const monthlyRetPct = parseFloat(document.getElementById('monthlyReturnDisplay').textContent) || 0;
-    const ltcgRate      = parseFloat(document.getElementById('ltcgRate').value) || 0;
-    const inflation     = parseFloat(document.getElementById('inflation').value) || 0;
-    const startY        = parseInt(document.getElementById('startYearsNum').value) || 0;
-    const startM        = parseInt(document.getElementById('startMonthsNum').value) || 0;
-    const deferral      = startY * 12 + startM;
 
     if (_solveMode === 'withdrawal') {
       cnote.className = 'corpus-note'; cnote.textContent = '';
