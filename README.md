@@ -20,6 +20,7 @@ A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans
   - 🟢 **Auto-update Withdrawal** — given corpus + target duration, solves the maximum sustainable monthly withdrawal
   - 🟣 **Auto-update Corpus** — given withdrawal + target duration, solves the minimum required initial corpus
   - 🟡 **Auto-update Target** — given corpus + withdrawal, computes the actual exhaustion time and fills the target fields
+- **Unit selectors on monetary inputs** — enter corpus in Hundreds / Thousands / Lakhs / **Crores** (default) and withdrawal in Hundreds / Thousands / **Lakhs** (default) without typing long numbers
 - **Persistent field highlights** — the auto-updated field shows a coloured border and "↻ Auto-set" badge until manually edited
 - **Field locking** — the field managed by the active solver is locked (read-only) with a tooltip on click
 - **Delta indicators on recalculate** — changed summary cards flash and show ▲/▼ % badges comparing previous vs new result
@@ -28,13 +29,14 @@ A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans
   - *Monthly Cashflow* — stacked bar chart of monthly Gain, Withdrawal, and Tax
 - **Stale results indicator** — button pulses amber and a banner appears when inputs are changed after calculation
 - **CSV export** — download the full monthly table as a CSV file
+- **Disclaimer banner** — always-visible notice below the header reminding users this is for reference only
 
 ## Inputs
 
 | Field | Description | Default |
 |---|---|---|
-| Initial Corpus | Starting fund value (locked when Auto-update Corpus is active) | ₹1,00,00,000 |
-| Monthly Withdrawal | Amount withdrawn each month (locked when Auto-update Withdrawal is active) | ₹1,00,000 |
+| Initial Corpus | Starting fund value — enter with unit selector (Crore default); locked when Auto-update Corpus is active | 1 Crore (₹1,00,00,000) |
+| Monthly Withdrawal | Amount withdrawn each month — enter with unit selector (Lakh default); locked when Auto-update Withdrawal is active | 1 Lakh (₹1,00,000) |
 | Annual Return | Expected annual return of the fund | 12% |
 | Tax Rate | LTCG tax on gains component of each withdrawal | 12.5% |
 | Annual Inflation | Rate at which withdrawal increases each year | 6% |
@@ -51,7 +53,7 @@ Select a mode using the toggle buttons below the Target field:
 | Auto-update Corpus 🏦 | Initial Corpus | Smallest corpus where withdrawal lasts ≥ target duration |
 | Auto-update Target 📅 | Target duration fields | Actual exhaustion time from the current corpus + withdrawal |
 
-Solvers use binary search (100 iterations) and run automatically on every **Calculate** click.
+Solvers use binary search (100 iterations) and run automatically on every **Calculate** click. **Auto-update Target** is the default mode on page load.
 
 ## Calculation Logic
 
@@ -79,6 +81,10 @@ Open `index.html` directly in any modern browser — no server or build step nee
 ```bash
 open index.html
 ```
+
+## Disclaimer
+
+This tool is for **reference and illustrative purposes only**. Projections assume constant return rates and do not reflect actual market performance. Tax calculations are simplified and may not cover all applicable rules. **This is not financial advice** — please consult a qualified financial advisor or tax professional before making investment decisions.
 
 ## Tech Stack
 
