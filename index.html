@@ -169,7 +169,20 @@
       cursor: not-allowed;
       user-select: none;
     }
-    .input-wrap.locked .unit { cursor: not-allowed; }
+    .unit-select {
+      background: var(--surface2);
+      border: none;
+      border-left: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.80rem;
+      height: 38px;
+      padding: 0 6px 0 8px;
+      cursor: pointer;
+      outline: none;
+      white-space: nowrap;
+    }
+    .unit-select:focus { color: var(--text); }
+    .input-wrap.locked .unit-select { pointer-events: none; opacity: 0.55; }
     /* when locked field is also auto-updated, restore opacity so highlight is visible */
     .input-wrap.locked.field-updated-w,
     .input-wrap.locked.field-updated-c { opacity: 1; }
@@ -608,6 +621,17 @@
       header { padding: 14px 18px; }
       .main { padding: 16px 14px; }
     }
+
+    .disclaimer {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 32px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: rgba(245,158,11,0.06);
+      line-height: 1.5;
+      text-align: center;
+    }
+    .disclaimer strong { color: var(--yellow); }
   </style>
 </head>
 <body>
@@ -620,6 +644,10 @@
   </div>
 </header>
 
+<div class="disclaimer">
+  <strong>⚠ Disclaimer:</strong> This tool is for <strong>reference and illustrative purposes only</strong>. Projections assume constant return rates and do not reflect actual market performance. Tax calculations are simplified and may not cover all applicable rules. <strong>This is not financial advice</strong> — please consult a qualified financial advisor or tax professional before making investment decisions.
+</div>
+
 <div class="layout">
   <!-- ── Sidebar: Inputs ── -->
   <aside class="sidebar">
@@ -629,7 +657,14 @@
       <label>Initial Corpus <span class="auto-set-badge" id="corpusBadge">↻ Auto-set</span></label>
       <div class="input-wrap" id="corpusWrap">
         <span class="unit">₹</span>
-        <input type="number" id="corpus" value="10000000" min="0" step="100000" placeholder="e.g. 10000000" />
+        <input type="number" id="corpusDisplay" value="1" min="0" step="0.01" placeholder="1" oninput="syncUnitField('corpus')" onchange="syncUnitField('corpus')" />
+        <select class="unit-select" id="corpusUnit" onchange="syncUnitField('corpus')">
+          <option value="100">Hundred</option>
+          <option value="1000">Thousand</option>
+          <option value="100000">Lakh</option>
+          <option value="10000000" selected>Crore</option>
+        </select>
+        <input type="hidden" id="corpus" value="10000000" />
       </div>
       <div class="field-tip" id="corpusTip">🔒 Managed by “Auto-update Corpus” — switch toggle to edit manually.</div>
     </div>
@@ -638,7 +673,14 @@
       <label>Initial Monthly Withdrawal <span class="auto-set-badge" id="withdrawalBadge">↻ Auto-set</span></label></label>
       <div class="input-wrap" id="withdrawalWrap">
         <span class="unit">₹</span>
-        <input type="number" id="withdrawal" value="100000" min="0" step="1000" placeholder="e.g. 100000" />
+        <input type="number" id="withdrawalDisplay" value="1" min="0" step="0.01" placeholder="1" oninput="syncUnitField('withdrawal')" onchange="syncUnitField('withdrawal')" />
+        <select class="unit-select" id="withdrawalUnit" onchange="syncUnitField('withdrawal')">
+          <option value="100">Hundred</option>
+          <option value="1000">Thousand</option>
+          <option value="100000" selected>Lakh</option>
+          <option value="10000000">Crore</option>
+        </select>
+        <input type="hidden" id="withdrawal" value="100000" />
       </div>
       <div class="field-tip" id="withdrawalTip">🔒 Managed by “Auto-update Withdrawal” — switch toggle to edit manually.</div>
     </div>
@@ -757,9 +799,9 @@
       <div class="target-note" id="targetNote"></div>
       <div class="corpus-note" id="corpusNote"></div>
       <div class="solve-toggle">
-        <button id="solveWBtn" class="active-w" onclick="setSolveMode('withdrawal')">Auto-update Withdrawal ₹</button>
+        <button id="solveWBtn" onclick="setSolveMode('withdrawal')">Auto-update Withdrawal ₹</button>
         <button id="solveCBtn" onclick="setSolveMode('corpus')">Auto-update Corpus 🏦</button>
-        <button id="solveTBtn" onclick="setSolveMode('target')">Auto-update Target 📅</button>
+        <button id="solveTBtn" class="active-t" onclick="setSolveMode('target')">Auto-update Target 📅</button>
       </div>
     </div>
 
@@ -855,8 +897,36 @@
     document.getElementById('corpusNote').textContent = '';
   }
 
+  // ── Unit-field helpers ──
+  function syncUnitField(fieldId) {
+    const display = document.getElementById(fieldId + 'Display');
+    const select  = document.getElementById(fieldId + 'Unit');
+    const hidden  = document.getElementById(fieldId);
+    if (!display || !select || !hidden) return;
+    const mult = parseFloat(select.value) || 1;
+    const val  = parseFloat(display.value) || 0;
+    hidden.value = Math.round(val * mult);
+    onTargetChange();
+  }
+
+  function setUnitFieldValue(fieldId, rawValue) {
+    const hidden  = document.getElementById(fieldId);
+    const display = document.getElementById(fieldId + 'Display');
+    const select  = document.getElementById(fieldId + 'Unit');
+    if (!hidden) return;
+    hidden.value = rawValue;
+    if (!display || !select) return;
+    let mult;
+    if      (rawValue >= 1e7) mult = 10000000;
+    else if (rawValue >= 1e5) mult = 100000;
+    else if (rawValue >= 1e3) mult = 1000;
+    else                      mult = 100;
+    select.value  = mult;
+    display.value = +(rawValue / mult).toFixed(2);
+  }
+
   // ── Solve-mode toggle ──
-  let _solveMode = 'withdrawal'; // 'withdrawal' | 'corpus'
+  let _solveMode = 'target'; // 'withdrawal' | 'corpus' | 'target'
 
   let _tipTimers = {};
   function flashField(fieldId, mode) {
@@ -867,11 +937,9 @@
     const badgeCls = mode === 'corpus' ? 'visible-c'       : 'visible-w';
     wrap.classList.remove('field-updated-w', 'field-updated-c');
     wrap.classList.add(cls);
-    if (badge) {
-      badge.className = 'auto-set-badge ' + badgeCls;
-    }
-    // Clear persistent state when user manually edits the field
-    const inp = document.getElementById(fieldId);
+    if (badge) badge.className = 'auto-set-badge ' + badgeCls;
+    // Clear persistent state when user manually edits the display field
+    const inp = document.getElementById(fieldId + 'Display') || document.getElementById(fieldId);
     if (inp && !inp._clearUpdated) {
       inp._clearUpdated = () => {
         wrap.classList.remove('field-updated-w', 'field-updated-c');
@@ -889,13 +957,14 @@
   }
 
   function setFieldLock(fieldId, lock) {
-    const wrap = document.getElementById(fieldId + 'Wrap');
-    const tip  = document.getElementById(fieldId + 'Tip');
-    const inp  = document.getElementById(fieldId);
+    const wrap    = document.getElementById(fieldId + 'Wrap');
+    const tip     = document.getElementById(fieldId + 'Tip');
+    const inp     = document.getElementById(fieldId + 'Display') || document.getElementById(fieldId);
+    const sel     = document.getElementById(fieldId + 'Unit');
     if (lock) {
       wrap.classList.add('locked');
       inp.readOnly = true;
-      // show tip briefly on any click on the locked wrap
+      if (sel) sel.disabled = true;
       if (!wrap._lockListener) {
         wrap._lockListener = (e) => {
           if (!wrap.classList.contains('locked')) return;
@@ -909,6 +978,7 @@
     } else {
       wrap.classList.remove('locked');
       inp.readOnly = false;
+      if (sel) sel.disabled = false;
       tip.classList.remove('visible');
     }
   }
@@ -937,7 +1007,7 @@
   }
 
   // Apply initial lock state
-  setSolveMode('withdrawal');
+  setSolveMode('target');
 
   function onTargetChange() {
     const tyRaw = document.getElementById('targetYearsNum').value.trim();
@@ -1019,7 +1089,7 @@
         tnote.textContent = 'Could not solve — check return rate.';
         return;
       }
-      document.getElementById('withdrawal').value = Math.round(sw);
+      setUnitFieldValue('withdrawal', Math.round(sw));
       flashField('withdrawal', 'withdrawal');
       tnote.className = 'target-note visible';
       tnote.textContent = `✓ Withdrawal set to ₹${Math.round(sw).toLocaleString('en-IN')}/mo to last ${ty}Y ${tm}M`;
@@ -1040,7 +1110,7 @@
         return;
       }
       const r = Math.round(sc);
-      document.getElementById('corpus').value = r;
+      setUnitFieldValue('corpus', r);
       flashField('corpus', 'corpus');
       const display = r >= 1e7 ? `₹${(r/1e7).toFixed(2)} Cr`
                     : r >= 1e5 ? `₹${(r/1e5).toFixed(2)} L`
