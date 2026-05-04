@@ -1,4 +1,4 @@
-# SWP Estimator
+# MutualFund SWP Estimator
 
 A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans (SWP)** from a mutual fund corpus. Enter your parameters and instantly see how long your corpus lasts, month-by-month breakdowns, and interactive charts — all running locally in your browser.
 
