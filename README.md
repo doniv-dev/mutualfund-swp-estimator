@@ -5,12 +5,15 @@ A single-file, zero-dependency web app to simulate **Systematic Withdrawal Plans
 ## Screenshots
 
 ### Demo
+
 ![SWP Estimator - Demo](docs/output.gif)
 
 ### Summary Dashboard
+
 ![SWP Estimator — Summary](docs/screenshot.png)
 
 ### Monthly Table
+
 ![SWP Estimator — Monthly Table](docs/screenshot-chart.png)
 
 ## Features
